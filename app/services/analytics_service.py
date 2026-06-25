@@ -1,6 +1,9 @@
 from sqlalchemy import func
 from sqlalchemy import desc
 
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+import numpy as np
 
 from app.models.sale import Sale
 from app.models.product import Product
@@ -95,3 +98,48 @@ class AnalyticsService:
             }
             for row in rows
         ]
+
+    def store_revenue(self, store_id):
+        rows = (
+            self.db.query(
+                func.date(Sale.sale_date).label("date"),
+                func.sum(Product.price * Sale.quantity).label("revenue")
+            )
+            .join(Product)
+            .filter(Sale.store_id == store_id)
+            .group_by(func.date(Sale.sale_date))
+            .order_by(func.date(Sale.sale_date))
+            .all()
+        )
+        return  [
+            {
+                "date": row.date,
+                "revenue": row.revenue
+            }
+            for row in rows
+        ]
+
+    def forecast_store_revenue(self, store_id):
+        data = self.store_revenue(store_id)
+
+        df = pd.DataFrame(data, columns=["date", "revenue"])
+
+        if len(df) < 2:
+            return {"message": "Not enough data"}
+
+        df["day_index"] = np.arange(len(df))
+
+        X = df[["day_index"]]
+        y = df["revenue"]
+
+        model = LinearRegression()
+        model.fit(X, y)
+
+        next_day = np.array([[len(df)]])
+
+        prediction = model.predict(next_day)[0]
+
+        return {
+            "store_id": store_id,
+            "forecast_next_day_revenue": float(prediction)
+        }

@@ -44,3 +44,19 @@ def category_revenue(
         db: Session = Depends(get_db)
 ):
     return AnalyticsService(db).category_revenue()
+
+
+@router.get("/store-revenue/{store_id}")
+def store_revenue(
+    store_id: int,
+    db: Session = Depends(get_db)
+):
+    return AnalyticsService(db).store_revenue(store_id)
+
+
+@router.get("/store-forecast/{store_id}")
+def store_forecast(
+    store_id: int,
+    db: Session = Depends(get_db)
+):
+    return AnalyticsService(db).forecast_store_revenue(store_id)

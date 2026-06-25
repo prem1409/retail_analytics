@@ -7,4 +7,6 @@ pandas
 pydantic
 python-jose
 passlib
+numpy
+sklearn
 bcrypt
