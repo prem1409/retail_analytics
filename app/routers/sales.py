@@ -1,49 +1,80 @@
-from fastapi import APIRouter
-from fastapi import Depends
-
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.sale import Sale
+from app.models.product import Product
+from app.models.store import Store
+from app.schemas.sale import SaleCreate
 
-from app.services.inventory_service import (
-    InventoryService
-)
-
-router = APIRouter(
-    prefix="/sales",
-    tags=["Sales"]
-)
+router = APIRouter(prefix="/sales", tags=["Sales"])
 
 
 @router.post("/")
 def create_sale(
-        product_id: int,
-        store_id: int,
-        quantity: int,
-        db: Session = Depends(get_db)
+    request: SaleCreate,
+    db: Session = Depends(get_db)
 ):
 
-    inventory = InventoryService(db)
+    try:
+        # 1. Validate product
+        product = (
+            db.query(Product)
+            .filter(Product.id == request.product_id)
+            .first()
+        )
 
-    inventory.reduce_stock(
-        product_id,
-        quantity
-    )
+        if not product:
+            raise HTTPException(
+                status_code=404,
+                detail="Product not found"
+            )
 
-    sale = Sale(
-        product_id=product_id,
-        store_id=store_id,
-        quantity=quantity
-    )
+        # 2. Validate store
+        store = (
+            db.query(Store)
+            .filter(Store.id == request.store_id)
+            .first()
+        )
 
-    db.add(sale)
-    db.commit()
+        if not store:
+            raise HTTPException(
+                status_code=404,
+                detail="Store not found"
+            )
 
-    return {
-        "message": "sale recorded"
-    }
+        # 3. Validate stock
+        if product.stock_quantity < request.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail="Insufficient stock"
+            )
 
+        # 4. Reduce stock
+        product.stock_quantity -= request.quantity
+
+        # 5. Create sale
+        sale = Sale(
+            product_id=request.product_id,
+            store_id=request.store_id,
+            quantity=request.quantity
+        )
+
+        db.add(sale)
+
+        # 6. Commit BOTH operations together
+        db.commit()
+
+        return {
+            "message": "sale recorded"
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
 @router.get("/")
 def all_sales(

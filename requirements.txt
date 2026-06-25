@@ -8,5 +8,7 @@ pydantic
 python-jose
 passlib
 numpy
+httpx
+pytest
 sklearn
 bcrypt
